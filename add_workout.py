@@ -3,174 +3,117 @@ import mysql.connector
 # --- AYARLAR ---
 DB_CONFIG = {
   'user': 'root',
-  'password': '1234',  # Kendi şifreni buraya yaz
+  'password': '1234',  # Şifreni buraya yaz
   'host': '127.0.0.1',
   'database': 'gympro_db'
 }
 
-def add_full_body_workout():
-    conn = mysql.connector.connect(**DB_CONFIG)
+def get_db_connection():
+    return mysql.connector.connect(**DB_CONFIG)
+
+def get_or_create_exercise_id(cursor, name, muscle_group):
+    """Egzersiz varsa ID'sini döner, yoksa oluşturup ID'sini döner."""
+    cursor.execute("SELECT exercise_id FROM Exercise WHERE name = %s", (name,))
+    res = cursor.fetchone()
+    if res:
+        return res[0]
+    else:
+        print(f"   -> Yeni Egzersiz Ekleniyor: {name}")
+        cursor.execute("INSERT INTO Exercise (name, muscle_group) VALUES (%s, %s)", (name, muscle_group))
+        return cursor.lastrowid
+
+def setup_all_workouts():
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    try:
-        print("1. 'Full Body' antrenmanı oluşturuluyor...")
-        # Önce antrenman başlığını ekle
-        cursor.execute("INSERT INTO FixedWorkout (title, duration_min) VALUES (%s, %s)", 
-                       ("Full Body Başlangıç", 60))
-        fixed_id = cursor.lastrowid
-        print(f"   Antrenman eklendi. ID: {fixed_id}")
-
-        # 2. Egzersizlerin ID'lerini bulalım
-        # İsimlerine göre ID'leri çekiyoruz
-        exercise_names = ["Squat", "Bench Press", "Lat Pulldown", "Overhead Press", "Plank"]
-        exercise_ids = {}
+    # --- TÜM PROGRAMLAR LİSTESİ ---
+    # Format: (Program Adı, Süre dk, [ (Hareket Adı, Kas Grubu, Set, Tekrar, Dinlenme sn) ])
+    all_routines = [
+        # 1. BAŞLANGIÇ SEVİYESİ
+        ("Full Body Başlangıç", 60, [
+            ("Squat", "Legs", 3, 12, 60),
+            ("Bench Press", "Chest", 3, 10, 60),
+            ("Lat Pulldown", "Back", 3, 12, 45),
+            ("Overhead Press", "Shoulders", 3, 10, 45),
+            ("Plank", "Core", 3, 60, 30) # 60sn bekleme değil süre
+        ]),
         
-        for name in exercise_names:
-            cursor.execute("SELECT exercise_id FROM Exercise WHERE name = %s", (name,))
-            result = cursor.fetchone()
-            if result:
-                exercise_ids[name] = result[0]
-            else:
-                print(f"   UYARI: {name} bulunamadı, bu egzersiz atlanacak.")
+        # 2. ORTA/İLERİ SEVİYE (UPPER/LOWER)
+        ("Upper Body Power", 75, [
+            ("Bench Press", "Chest", 4, 6, 120),
+            ("Bent Over Row", "Back", 4, 8, 90),
+            ("Overhead Press", "Shoulders", 3, 8, 90),
+            ("Lat Pulldown", "Back", 3, 10, 60),
+            ("Dumbbell Curl", "Arms", 3, 12, 60),
+            ("Skullcrusher", "Arms", 3, 12, 60)
+        ]),
+        ("Lower Body Power", 70, [
+            ("Squat", "Legs", 4, 6, 180),
+            ("Deadlift", "Back", 3, 5, 180),
+            ("Leg Press", "Legs", 3, 10, 90),
+            ("Calf Raise", "Legs", 4, 15, 45),
+            ("Plank", "Core", 3, 60, 60)
+        ]),
+        
+        # 3. İLERİ SEVİYE (PUSH/PULL/LEGS)
+        ("Push Day (İtiş)", 60, [
+            ("Incline Bench Press", "Chest", 4, 8, 90),
+            ("Overhead Press", "Shoulders", 3, 10, 90),
+            ("Lateral Raise", "Shoulders", 4, 15, 45),
+            ("Tricep Extension", "Arms", 3, 12, 60),
+            ("Dips", "Chest", 3, 10, 60)
+        ]),
+        ("Pull Day (Çekiş)", 60, [
+            ("Pull Up", "Back", 4, 8, 120),
+            ("Barbell Row", "Back", 3, 10, 90),
+            ("Face Pull", "Shoulders", 3, 15, 60),
+            ("Hammer Curl", "Arms", 3, 12, 60),
+            ("Preacher Curl", "Arms", 3, 12, 60)
+        ]),
+        ("Leg Day (Bacak)", 65, [
+            ("Squat", "Legs", 4, 8, 120),
+            ("Romanian Deadlift", "Legs", 3, 10, 90),
+            ("Leg Extension", "Legs", 3, 15, 60),
+            ("Leg Curl", "Legs", 3, 15, 60),
+            ("Walking Lunge", "Legs", 3, 20, 60)
+        ])
+    ]
 
-        # 3. Antrenman detaylarını (Set/Tekrar) ekleyelim
-        # (fixed_id, exercise_id, order_no, sets, reps, rest_sec)
-        workout_plan = [
-            (fixed_id, exercise_ids.get("Squat"), 1, 3, 12, 60),
-            (fixed_id, exercise_ids.get("Bench Press"), 2, 3, 10, 60),
-            (fixed_id, exercise_ids.get("Lat Pulldown"), 3, 3, 12, 45),
-            (fixed_id, exercise_ids.get("Overhead Press"), 4, 3, 10, 45),
-            (fixed_id, exercise_ids.get("Plank"), 5, 3, 1, 30) # 1 tekrar (sn bazlı düşünülebilir)
-        ]
+    print("🚀 Antrenman veritabanı senkronize ediliyor...")
 
-        print("2. Egzersizler plana ekleniyor...")
-        for item in workout_plan:
-            # Eğer egzersiz ID'si bulunduysa ekle
-            if item[1] is not None:
+    try:
+        for title, duration, exercises in all_routines:
+            # 1. Program daha önce eklenmiş mi?
+            cursor.execute("SELECT fixed_id FROM FixedWorkout WHERE title = %s", (title,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                print(f"✅ Zaten Var: {title} (Atlanıyor)")
+                continue
+
+            # 2. Program Yoksa Ekle
+            cursor.execute("INSERT INTO FixedWorkout (title, duration_min) VALUES (%s, %s)", (title, duration))
+            fixed_id = cursor.lastrowid
+            print(f"🆕 Eklendi: {title}")
+
+            # 3. İçeriği Doldur
+            for order, (ex_name, muscle, sets, reps, rest) in enumerate(exercises, 1):
+                ex_id = get_or_create_exercise_id(cursor, ex_name, muscle)
+                
                 cursor.execute("""
                     INSERT INTO FixedWorkoutExercise (fixed_id, exercise_id, order_no, sets, reps, rest_sec)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, item)
+                """, (fixed_id, ex_id, order, sets, reps, rest))
 
         conn.commit()
-        print("\nBAŞARILI! 'Full Body Başlangıç' antrenmanı veritabanına işlendi.")
-        
-    except mysql.connector.Error as err:
-        print(f"HATA: {err}")
-    finally:
-        cursor.close()
-        conn.close()
+        print("\n🎉 İŞLEM TAMAM! Tüm antrenmanlar hazır.")
 
-        # --- 4) RUTİNLERİM (LİSTELEME) ---
-@app.route('/api/my-routines', methods=['GET'])
-def get_my_routines():
-    # Test için yine ID=1 varsayıyoruz
-    member_id = request.args.get('member_id', 1)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        # Sadece rutin başlıklarını getir
-        cursor.execute("""
-            SELECT routine_id, title, created_at 
-            FROM CustomRoutine 
-            WHERE member_id = %s 
-            ORDER BY created_at DESC
-        """, (member_id,))
-        routines = cursor.fetchall()
-        return jsonify(routines)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-# --- 4.1) YENİ RUTİN OLUŞTURMA ---
-@app.route('/api/my-routines', methods=['POST'])
-def create_routine():
-    data = request.get_json()
-    member_id = data.get('member_id', 1)
-    title = data.get('title')
-    
-    if not title:
-        return jsonify({'error': 'Rutin başlığı (title) zorunludur'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("INSERT INTO CustomRoutine (member_id, title) VALUES (%s, %s)", 
-                       (member_id, title))
-        conn.commit()
-        new_id = cursor.lastrowid
-        
-        return jsonify({'message': 'Rutin oluşturuldu', 'routine_id': new_id}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-# --- 4.2) RUTİN DETAYI VE EGZERSİZLERİ ---
-@app.route('/api/my-routines/<int:routine_id>', methods=['GET'])
-def get_routine_detail(routine_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        # 1. Rutin başlığını al
-        cursor.execute("SELECT * FROM CustomRoutine WHERE routine_id = %s", (routine_id,))
-        routine = cursor.fetchone()
-        
-        if not routine:
-            return jsonify({'error': 'Rutin bulunamadı'}), 404
-
-        # 2. Rutindeki egzersizleri al
-        cursor.execute("""
-            SELECT 
-                cre.exercise_id,
-                e.name,
-                cre.sets, cre.reps, cre.rest_sec, cre.order_no
-            FROM CustomRoutineExercise cre
-            JOIN Exercise e ON cre.exercise_id = e.exercise_id
-            WHERE cre.routine_id = %s
-            ORDER BY cre.order_no ASC
-        """, (routine_id,))
-        exercises = cursor.fetchall()
-        
-        routine['exercises'] = exercises
-        return jsonify(routine)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-# --- 4.3) RUTİNE EGZERSİZ EKLEME ---
-@app.route('/api/my-routines/<int:routine_id>/add-exercise', methods=['POST'])
-def add_exercise_to_routine(routine_id):
-    data = request.get_json()
-    exercise_id = data.get('exercise_id')
-    sets = data.get('sets', 3)
-    reps = data.get('reps', 10)
-    rest_sec = data.get('rest_sec', 60)
-    order_no = data.get('order_no', 1)
-
-    if not exercise_id:
-        return jsonify({'error': 'Exercise ID zorunlu'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            INSERT INTO CustomRoutineExercise (routine_id, exercise_id, sets, reps, rest_sec, order_no)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (routine_id, exercise_id, sets, reps, rest_sec, order_no))
-        conn.commit()
-        return jsonify({'message': 'Egzersiz rutine eklendi'}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ HATA: {e}")
+        conn.rollback()
     finally:
         cursor.close()
         conn.close()
 
 if __name__ == "__main__":
-    add_full_body_workout()
+    setup_all_workouts()
