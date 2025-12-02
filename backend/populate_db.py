@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 
 DB_CONFIG = {
   'user': 'root',
-  'password': '1234',  # Kendi şifreni buraya yaz
+  'password': 'Halil_2003',  # Kendi şifreni buraya yaz
   'host': '127.0.0.1',
   'database': 'gympro_db'
 }

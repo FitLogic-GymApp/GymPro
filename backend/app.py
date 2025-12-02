@@ -1,15 +1,17 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 import mysql.connector
 from datetime import date
+import os
 
 app = Flask(__name__)
+CORS(app)
 
-# --- VERİTABANI AYARLARI ---
 DB_CONFIG = {
-  'user': 'root',
-  'password': '1234',  # Kendi şifrenizi buraya yazın
-  'host': '127.0.0.1',
-  'database': 'gympro_db'
+    'user': os.environ.get('DB_USER', 'root'),
+    'password': os.environ.get('DB_PASSWORD', 'Halil_2003'),
+    'host': os.environ.get('DB_HOST', '127.0.0.1'),
+    'database': os.environ.get('DB_NAME', 'gympro_db')
 }
 
 def get_db_connection():
@@ -280,11 +282,126 @@ def add_exercise_to_routine(routine_id):
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (routine_id, exercise_id, sets, reps, rest_sec, order_no))
         conn.commit()
-        return jsonify({'message': 'Egzersiz rutine eklendi'}), 201
+        return jsonify({'message': 'Exercise added to routine'}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
         conn.close()
+
+
+@app.route('/api/my-routines/<int:routine_id>/remove-exercise/<int:exercise_id>', methods=['DELETE'])
+def remove_exercise_from_routine(routine_id, exercise_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM CustomRoutineExercise 
+            WHERE routine_id = %s AND exercise_id = %s
+        """, (routine_id, exercise_id))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Exercise not found in routine'}), 404
+            
+        return jsonify({'message': 'Exercise removed from routine'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/my-routines/<int:routine_id>', methods=['PUT'])
+def update_routine(routine_id):
+    data = request.get_json()
+    title = data.get('title')
+    
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE CustomRoutine SET title = %s WHERE routine_id = %s
+        """, (title, routine_id))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Routine not found'}), 404
+            
+        return jsonify({'message': 'Routine updated'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/my-routines/<int:routine_id>', methods=['DELETE'])
+def delete_routine(routine_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM CustomRoutineExercise WHERE routine_id = %s", (routine_id,))
+        cursor.execute("DELETE FROM CustomRoutine WHERE routine_id = %s", (routine_id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Routine not found'}), 404
+            
+        return jsonify({'message': 'Routine deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/exercises', methods=['GET'])
+def get_exercises():
+    muscle_group = request.args.get('muscle_group')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if muscle_group:
+            cursor.execute("""
+                SELECT exercise_id, name, muscle_group 
+                FROM Exercise 
+                WHERE muscle_group = %s
+                ORDER BY name
+            """, (muscle_group,))
+        else:
+            cursor.execute("""
+                SELECT exercise_id, name, muscle_group 
+                FROM Exercise 
+                ORDER BY muscle_group, name
+            """)
+        exercises = cursor.fetchall()
+        return jsonify(exercises)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/muscle-groups', methods=['GET'])
+def get_muscle_groups():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT DISTINCT muscle_group FROM Exercise ORDER BY muscle_group")
+        groups = [row[0] for row in cursor.fetchall()]
+        return jsonify(groups)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
