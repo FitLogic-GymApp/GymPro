@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../../../core/services/api_service.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/services/auth_service.dart';
 import '../models/workout_models.dart';
 
 class WorkoutsProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
+  final AuthService _authService = AuthService();
 
   List<FixedWorkout> _fixedWorkouts = [];
   List<CustomRoutine> _myRoutines = [];
@@ -26,13 +27,18 @@ class WorkoutsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  int? get _gymId => _authService.selectedGym?.gymId;
+  int? get _memberId => _authService.currentUser?.memberId;
+
   Future<void> fetchFixedWorkouts() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final response = await _api.get('/fixed-workouts');
+      // gym_id parametresi - global + salona özel workout'lar gelir
+      final queryParams = _gymId != null ? {'gym_id': _gymId} : null;
+      final response = await _api.get('/fixed-workouts', queryParams: queryParams);
       _fixedWorkouts = (response as List)
           .map((e) => FixedWorkout.fromJson(e))
           .toList();
@@ -60,14 +66,20 @@ class WorkoutsProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchMyRoutines({int? memberId}) async {
+  Future<void> fetchMyRoutines() async {
+    if (_memberId == null) {
+      _error = 'Kullanıcı bilgisi bulunamadı';
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       final response = await _api.get('/my-routines', queryParams: {
-        'member_id': memberId ?? AppConstants.defaultMemberId,
+        'member_id': _memberId,
       });
       _myRoutines = (response as List)
           .map((e) => CustomRoutine.fromJson(e))
@@ -96,13 +108,19 @@ class WorkoutsProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createRoutine(String title, {int? memberId}) async {
+  Future<bool> createRoutine(String title) async {
+    if (_memberId == null) {
+      _error = 'Kullanıcı bilgisi bulunamadı';
+      notifyListeners();
+      return false;
+    }
+
     try {
       await _api.post('/my-routines', body: {
-        'member_id': memberId ?? AppConstants.defaultMemberId,
+        'member_id': _memberId,
         'title': title,
       });
-      await fetchMyRoutines(memberId: memberId);
+      await fetchMyRoutines();
       return true;
     } catch (e) {
       _error = e.toString();
@@ -203,6 +221,17 @@ class WorkoutsProvider extends ChangeNotifier {
   void clearSelectedWorkout() {
     _selectedFixedWorkout = null;
     _selectedRoutine = null;
+    notifyListeners();
+  }
+
+  void clearData() {
+    _fixedWorkouts = [];
+    _myRoutines = [];
+    _exercises = [];
+    _muscleGroups = [];
+    _selectedFixedWorkout = null;
+    _selectedRoutine = null;
+    _error = null;
     notifyListeners();
   }
 }

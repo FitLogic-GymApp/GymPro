@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GymPro Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --primary-dark: #5a52d5;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --info: #17a2b8;
+            --dark: #1a1a2e;
+            --darker: #16213e;
+            --surface: #1f2937;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+            --text-muted: rgba(255,255,255,0.5);
+            --border-color: rgba(255,255,255,0.1);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--darker) 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-primary) !important;
+        }
+        
+        /* Force white text globally */
+        p, span, div, td, th, h1, h2, h3, h4, h5, h6, label, small {
+            color: inherit;
+        }
+        
+        /* LOGIN */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-card {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+        }
+        
+        .login-card h2 { color: var(--text-primary); text-align: center; margin-bottom: 30px; }
+        .login-card .logo { text-align: center; margin-bottom: 20px; }
+        .login-card .logo i { font-size: 64px; color: var(--primary); }
+        
+        /* FORMS */
+        .form-control, .form-select {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 12px 16px;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: rgba(255,255,255,0.15);
+            border-color: var(--primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.2rem rgba(108, 99, 255, 0.25);
+        }
+        
+        .form-control::placeholder { color: var(--text-muted); }
+        .form-label { color: var(--text-secondary); font-weight: 500; margin-bottom: 6px; }
+        .form-select option { background: var(--darker); color: var(--text-primary); }
+        
+        /* INPUT READONLY */
+        .form-control[readonly] { 
+            background: rgba(255,255,255,0.05); 
+            color: var(--text-secondary);
+        }
+        
+        /* BUTTONS */
+        .btn-primary { background: var(--primary); border: none; padding: 12px 24px; font-weight: 600; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); border: none; }
+        .btn-danger { background: var(--danger); border: none; }
+        .btn-warning { background: var(--warning); border: none; color: #000; }
+        .btn-outline-light { border-color: var(--border-color); color: var(--text-secondary); }
+        .btn-outline-light:hover { background: rgba(255,255,255,0.1); border-color: var(--text-secondary); }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--darker);
+            min-height: 100vh;
+            padding: 20px 0;
+            position: fixed;
+            width: 260px;
+            border-right: 1px solid var(--border-color);
+            z-index: 1000;
+        }
+        
+        .sidebar .brand {
+            color: var(--text-primary);
+            font-size: 24px;
+            font-weight: bold;
+            padding: 0 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .sidebar .brand i { color: var(--primary); }
+        
+        .sidebar .nav-link {
+            color: var(--text-secondary);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: var(--text-primary);
+            background: rgba(108, 99, 255, 0.15);
+            border-left-color: var(--primary);
+        }
+        
+        .sidebar .nav-link i { font-size: 18px; width: 24px; }
+        
+        /* MAIN */
+        .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .top-bar h1 { color: var(--text-primary); margin: 0; font-size: 28px; }
+        
+        .gym-badge {
+            background: var(--primary);
+            color: var(--text-primary);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        /* STAT CARDS */
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            height: 100%;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover { transform: translateY(-4px); }
+        
+        .stat-card .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 16px;
+        }
+        
+        .stat-card .stat-value { font-size: 36px; font-weight: bold; color: var(--text-primary); line-height: 1; }
+        .stat-card .stat-label { color: var(--text-secondary); font-size: 14px; margin-top: 8px; }
+        
+        /* CONTENT CARDS */
+        .content-card {
+            background: var(--surface) !important;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .content-card * { background-color: transparent; }
+        .content-card .form-label { color: var(--text-secondary) !important; }
+        .content-card .form-control { color: var(--text-primary) !important; }
+        
+        .content-card .card-header-custom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .content-card h5 {
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+        }
+        
+        /* TABLES */
+        .table { 
+            color: var(--text-primary) !important; 
+            margin: 0;
+            --bs-table-bg: transparent;
+            --bs-table-color: var(--text-primary);
+            --bs-table-border-color: var(--border-color);
+            --bs-table-striped-bg: rgba(255,255,255,0.02);
+            --bs-table-striped-color: var(--text-primary);
+            --bs-table-hover-bg: rgba(108, 99, 255, 0.05);
+            --bs-table-hover-color: var(--text-primary);
+        }
+        
+        .table thead th {
+            border-color: var(--border-color) !important;
+            color: var(--text-secondary) !important;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 14px 12px;
+            background: rgba(0,0,0,0.2) !important;
+        }
+        
+        .table tbody td {
+            border-color: var(--border-color) !important;
+            vertical-align: middle;
+            padding: 14px 12px;
+            color: var(--text-primary) !important;
+            background: transparent !important;
+        }
+        
+        .table tbody tr { background: transparent !important; }
+        .table tbody tr:hover { background: rgba(108, 99, 255, 0.05) !important; }
+        
+        .table-responsive { background: transparent !important; }
+        
+        /* BADGES */
+        .badge-active { background: rgba(40, 167, 69, 0.2); color: var(--success); padding: 6px 12px; border-radius: 20px; font-weight: 500; }
+        .badge-inactive { background: rgba(220, 53, 69, 0.2); color: var(--danger); padding: 6px 12px; border-radius: 20px; font-weight: 500; }
+        .badge-timed { background: rgba(23, 162, 184, 0.2); color: var(--info); }
+        .badge-credit { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        
+        /* MODALS */
+        .modal-content { background: var(--darker); border: 1px solid var(--border-color); border-radius: 16px; }
+        .modal-header { border-color: var(--border-color); padding: 20px 24px; }
+        .modal-header .btn-close { filter: invert(1); opacity: 0.6; }
+        .modal-header .btn-close:hover { opacity: 1; }
+        .modal-title { color: var(--text-primary); font-weight: 600; }
+        .modal-body { padding: 24px; }
+        .modal-body .form-label { color: var(--text-secondary); }
+        .modal-body .form-control, .modal-body .form-select { 
+            background: rgba(255,255,255,0.1); 
+            color: var(--text-primary); 
+            border-color: var(--border-color);
+        }
+        .modal-body .form-control:focus, .modal-body .form-select:focus { 
+            color: var(--text-primary); 
+            background: rgba(255,255,255,0.15);
+        }
+        .modal-body .form-control[readonly] { 
+            background: rgba(255,255,255,0.05); 
+            color: var(--text-secondary);
+        }
+        .modal-body small { color: var(--text-muted); }
+        .modal-footer { border-color: var(--border-color); padding: 16px 24px; }
+        
+        /* ALERTS */
+        .alert { border-radius: 12px; border: none; }
+        .alert-success { background: rgba(40, 167, 69, 0.2); color: var(--success); }
+        .alert-danger { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
+        
+        /* PAGE SECTIONS */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        
+        /* ACTION BUTTONS */
+        .action-btn {
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            margin: 0 2px;
+        }
+        
+        .action-btn i { font-size: 14px; }
+        
+        /* SEARCH BOX */
+        .search-box { position: relative; }
+        .search-box input { padding-left: 40px; width: 280px; }
+        .search-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        
+        /* TRAINER CARD */
+        .trainer-card {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .trainer-avatar {
+            width: 48px;
+            height: 48px;
+            background: rgba(108, 99, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+        }
+        
+        .trainer-avatar i { font-size: 20px; color: var(--primary); }
+        .trainer-info { flex: 1; }
+        .trainer-info h6 { color: var(--text-primary); margin: 0 0 4px 0; }
+        .trainer-info small { color: var(--text-secondary); }
+        
+        /* RESPONSIVE */
+        @media (max-width: 992px) {
+            .sidebar { width: 70px; overflow: hidden; }
+            .sidebar .brand span, .sidebar .nav-link span { display: none; }
+            .sidebar .nav-link { justify-content: center; padding: 14px; }
+            .main-content { margin-left: 70px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGIN PAGE -->
+    <div class="login-container" id="loginPage">
+        <div class="login-card">
+            <div class="logo"><i class="bi bi-shield-lock"></i></div>
+            <h2>GymPro Admin</h2>
+            <div id="loginAlert"></div>
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı Adı</label>
+                    <input type="text" class="form-control" id="username" placeholder="admin" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">Şifre</label>
+                    <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Giriş Yap
+                </button>
+            </form>
+            <div class="text-center mt-4">
+                <small style="color: var(--text-muted);">Her spor salonunun kendi admin hesabı vardır</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard-container d-none" id="dashboardPage">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <i class="bi bi-lightning-charge-fill"></i>
+                <span>GymPro</span>
+            </div>
+            <nav>
+                <a href="#" class="nav-link active" data-page="dashboard">
+                    <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-link" data-page="members">
+                    <i class="bi bi-people"></i><span>Üyeler</span>
+                </a>
+                <a href="#" class="nav-link" data-page="trainers">
+                    <i class="bi bi-person-badge"></i><span>Antrenörler</span>
+                </a>
+                <a href="#" class="nav-link" data-page="settings">
+                    <i class="bi bi-gear"></i><span>Ayarlar</span>
+                </a>
+                <a href="#" class="nav-link mt-4" id="logoutBtn">
+                    <i class="bi bi-box-arrow-left"></i><span>Çıkış</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="top-bar">
+                <h1 id="pageTitle">Dashboard</h1>
+                <span class="gym-badge" id="gymName"><i class="bi bi-building me-2"></i>Yükleniyor...</span>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <!-- DASHBOARD SECTION -->
+            <div class="page-section active" id="section-dashboard">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(108, 99, 255, 0.2);">
+                                <i class="bi bi-people" style="color: var(--primary);"></i>
+                            </div>
+                            <div class="stat-value" id="statTotalMembers">0</div>
+                            <div class="stat-label">Toplam Üye</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(40, 167, 69, 0.2);">
+                                <i class="bi bi-person-check" style="color: var(--success);"></i>
+                            </div>
+                            <div class="stat-value" id="statActiveMembers">0</div>
+                            <div class="stat-label">Aktif Üye</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(23, 162, 184, 0.2);">
+                                <i class="bi bi-door-open" style="color: var(--info);"></i>
+                            </div>
+                            <div class="stat-value" id="statPeopleInside">0</div>
+                            <div class="stat-label">Şu An İçeride</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(255, 193, 7, 0.2);">
+                                <i class="bi bi-person-badge" style="color: var(--warning);"></i>
+                            </div>
+                            <div class="stat-value" id="statTotalTrainers">0</div>
+                            <div class="stat-label">Antrenör</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="content-card">
+                            <div class="card-header-custom">
+                                <h5><i class="bi bi-clock-history"></i> Son Eklenen Üyeler</h5>
+                                <a href="#" class="btn btn-sm btn-outline-light" onclick="navigateTo('members')">Tümünü Gör <i class="bi bi-arrow-right ms-1"></i></a>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr><th>Üye</th><th>Email</th><th>Üyelik</th><th>Durum</th></tr>
+                                    </thead>
+                                    <tbody id="recentMembersTable">
+                                        <tr><td colspan="4" class="text-center py-4">Yükleniyor...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="content-card">
+                            <div class="card-header-custom">
+                                <h5><i class="bi bi-person-badge"></i> Antrenörler</h5>
+                            </div>
+                            <div id="trainersList">Yükleniyor...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MEMBERS SECTION -->
+            <div class="page-section" id="section-members">
+                <div class="content-card">
+                    <div class="card-header-custom">
+                        <h5><i class="bi bi-people"></i> Üye Yönetimi</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <div class="search-box">
+                                <i class="bi bi-search"></i>
+                                <input type="text" class="form-control" id="memberSearch" placeholder="Üye ara...">
+                            </div>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                                <i class="bi bi-plus-circle me-2"></i>Üye Ekle
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th><th>Ad Soyad</th><th>Email</th><th>Üyelik</th><th>Kalan</th><th>Durum</th><th style="width:150px;">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allMembersTable">
+                                <tr><td colspan="7" class="text-center py-4">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TRAINERS SECTION -->
+            <div class="page-section" id="section-trainers">
+                <div class="content-card">
+                    <div class="card-header-custom">
+                        <h5><i class="bi bi-person-badge"></i> Antrenör Yönetimi</h5>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTrainerModal">
+                            <i class="bi bi-plus-circle me-2"></i>Antrenör Ekle
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr><th>ID</th><th>Ad Soyad</th><th>Uzmanlık</th><th>Puan</th><th>Salonda</th><th>Üye ID</th><th style="width:150px;">İşlemler</th></tr>
+                            </thead>
+                            <tbody id="allTrainersTable">
+                                <tr><td colspan="7" class="text-center py-4">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS SECTION -->
+            <div class="page-section" id="section-settings">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="content-card">
+                            <h5 class="mb-4"><i class="bi bi-building me-2"></i>Salon Bilgileri</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Salon Adı</label>
+                                <input type="text" class="form-control" id="settingsGymName" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Konum</label>
+                                <input type="text" class="form-control" id="settingsGymLocation" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Kapasite</label>
+                                <input type="number" class="form-control" id="settingsGymCapacity" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="content-card">
+                            <h5 class="mb-4"><i class="bi bi-info-circle me-2"></i>Sistem Bilgisi</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Admin Kullanıcı</label>
+                                <input type="text" class="form-control" id="settingsAdminUsername" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Gym ID</label>
+                                <input type="text" class="form-control" id="settingsGymId" readonly>
+                            </div>
+                            <hr class="my-4" style="border-color: var(--border-color);">
+                            <p style="color: var(--text-muted); font-size: 14px;">
+                                <i class="bi bi-shield-check me-1"></i>
+                                Her spor salonunun bağımsız admin hesabı vardır. Yeni salon için veritabanına <code style="color: var(--primary);">GymAdmin</code> kaydı ekleyin.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    
+    <!-- Add Member Modal -->
+    <div class="modal fade" id="addMemberModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Yeni Üye Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="color: var(--text-muted);" class="mb-4">Kullanıcının önce mobil uygulamadan kayıt olması gerekiyor.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Kullanıcı Email <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="memberEmail" placeholder="kullanici@email.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Üyelik Tipi</label>
+                        <select class="form-select" id="membershipType">
+                            <option value="timed">Süreli Üyelik</option>
+                            <option value="credit">Kredili Üyelik</option>
+                        </select>
+                    </div>
+                    <div id="timedOptions">
+                        <div class="mb-3">
+                            <label class="form-label">Süre</label>
+                            <select class="form-select" id="membershipDays">
+                                <option value="30">1 Ay (30 gün)</option>
+                                <option value="90">3 Ay (90 gün)</option>
+                                <option value="180">6 Ay (180 gün)</option>
+                                <option value="365">1 Yıl (365 gün)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="creditOptions" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Giriş Hakkı</label>
+                            <select class="form-select" id="membershipCredits">
+                                <option value="10">10 Giriş</option>
+                                <option value="20">20 Giriş</option>
+                                <option value="30">30 Giriş</option>
+                                <option value="50">50 Giriş</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmAddMember"><i class="bi bi-check-lg me-1"></i>Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div class="modal fade" id="editMemberModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Üyelik Düzenle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editMembershipId">
+                    <div class="mb-3">
+                        <label class="form-label">Üye</label>
+                        <input type="text" class="form-control" id="editMemberName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Üyelik Tipi</label>
+                        <select class="form-select" id="editMembershipType">
+                            <option value="timed">Süreli</option>
+                            <option value="credit">Kredili</option>
+                        </select>
+                    </div>
+                    <div id="editTimedOptions">
+                        <div class="mb-3">
+                            <label class="form-label">Yeni Süre (gün)</label>
+                            <input type="number" class="form-control" id="editMemberDays" min="1" value="30">
+                            <small style="color: var(--text-muted);">Bugünden itibaren eklenecek gün sayısı</small>
+                        </div>
+                    </div>
+                    <div id="editCreditOptions" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Toplam Kredi</label>
+                            <input type="number" class="form-control" id="editCreditTotal" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Durum</label>
+                        <select class="form-select" id="editMemberStatus">
+                            <option value="1">Aktif</option>
+                            <option value="0">Pasif</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmEditMember"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Credit Modal -->
+    <div class="modal fade" id="addCreditModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Bakiye Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="creditMembershipId">
+                    <div class="mb-3">
+                        <label class="form-label">Üye</label>
+                        <input type="text" class="form-control" id="creditMemberName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Eklenecek Miktar</label>
+                        <input type="number" class="form-control" id="creditAmount" min="1" value="30">
+                        <small style="color: var(--text-muted);" id="creditHint">Gün veya giriş hakkı</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-success" id="confirmAddCredit"><i class="bi bi-plus-lg me-1"></i>Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Trainer Modal -->
+    <div class="modal fade" id="addTrainerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Yeni Antrenör</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Üye Bağlantısı</label>
+                        <select class="form-select" id="trainerMemberId">
+                            <option value="">-- Mevcut üye seçin (opsiyonel) --</option>
+                        </select>
+                        <small class="text-muted">Antrenör aynı zamanda üye ise turnikeden QR ile geçebilir</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ad Soyad <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="trainerName" placeholder="Ahmet Yılmaz" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Uzmanlık Alanı <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="trainerSpecialty" placeholder="Fitness, Pilates..." required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmAddTrainer"><i class="bi bi-check-lg me-1"></i>Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Trainer Modal -->
+    <div class="modal fade" id="editTrainerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Antrenör Düzenle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editTrainerId">
+                    <div class="mb-3">
+                        <label class="form-label">Üye Bağlantısı</label>
+                        <select class="form-select" id="editTrainerMemberId">
+                            <option value="">-- Mevcut üye seçin (opsiyonel) --</option>
+                        </select>
+                        <small class="text-muted">Antrenör aynı zamanda üye ise turnikeden QR ile geçebilir</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ad Soyad</label>
+                        <input type="text" class="form-control" id="editTrainerName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Uzmanlık</label>
+                        <input type="text" class="form-control" id="editTrainerSpecialty" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Salonda mı?</label>
+                        <select class="form-select" id="editTrainerInGym">
+                            <option value="1">Evet</option>
+                            <option value="0">Hayır</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmEditTrainer"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Silme Onayı</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="deleteMessage">Bu öğeyi silmek istediğinizden emin misiniz?</p>
+                    <input type="hidden" id="deleteItemId">
+                    <input type="hidden" id="deleteItemType">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete"><i class="bi bi-trash me-1"></i>Sil</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
