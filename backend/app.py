@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import mysql.connector
+import pyodbc
 from datetime import date
 import os
 
@@ -8,18 +8,89 @@ app = Flask(__name__)
 # CORS: Frontend (Web/Mobil) uygulamasının bu API'ye erişmesine izin verir.
 CORS(app)
 
-# --- VERİTABANI KONFİGÜRASYONU ---
-# Ortam değişkenlerinden okur, yoksa varsayılanları kullanır.
+# --- VERİTABANI KONFİGÜRASYONU (ODBC) ---
+# MySQL ODBC Driver kullanarak bağlantı
 DB_CONFIG = {
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', 'Halil_2003'), # Şifreniz
-    'host': os.environ.get('DB_HOST', '127.0.0.1'),
-    'database': os.environ.get('DB_NAME', 'gympro_db')
+    'driver': '{MySQL ODBC 9.5 Unicode Driver}',
+    'server': os.environ.get('DB_HOST', '127.0.0.1'),
+    'database': os.environ.get('DB_NAME', 'gympro_db'),
+    'uid': os.environ.get('DB_USER', 'root'),
+    'pwd': os.environ.get('DB_PASSWORD', 'Halil_2003')
 }
 
+class DictCursor:
+    """pyodbc cursor'ı mysql.connector dictionary cursor gibi davranmasını sağlar"""
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self._columns = None
+    
+    def execute(self, sql, params=None):
+        if params:
+            # MySQL %s placeholder -> ODBC ? placeholder
+            sql = sql.replace('%s', '?')
+            self._cursor.execute(sql, params)
+        else:
+            self._cursor.execute(sql)
+        if self._cursor.description:
+            self._columns = [column[0] for column in self._cursor.description]
+        return self
+    
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row and self._columns:
+            return dict(zip(self._columns, row))
+        return row
+    
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if rows and self._columns:
+            return [dict(zip(self._columns, row)) for row in rows]
+        return rows
+    
+    def close(self):
+        self._cursor.close()
+    
+    @property
+    def lastrowid(self):
+        self._cursor.execute("SELECT @@IDENTITY")
+        result = self._cursor.fetchone()
+        return result[0] if result else None
+    
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+class ConnectionWrapper:
+    """pyodbc connection'ı mysql.connector gibi davranmasını sağlar"""
+    def __init__(self, conn):
+        self._conn = conn
+    
+    def cursor(self, dictionary=False):
+        cursor = self._conn.cursor()
+        if dictionary:
+            return DictCursor(cursor)
+        return cursor
+    
+    def commit(self):
+        self._conn.commit()
+    
+    def close(self):
+        self._conn.close()
+
 def get_db_connection():
-    """Veritabanı bağlantısı oluşturur ve döner."""
-    return mysql.connector.connect(**DB_CONFIG)
+    """ODBC kullanarak veritabanı bağlantısı oluşturur ve döner."""
+    connection_string = (
+        f"DRIVER={DB_CONFIG['driver']};"
+        f"SERVER={DB_CONFIG['server']};"
+        f"DATABASE={DB_CONFIG['database']};"
+        f"UID={DB_CONFIG['uid']};"
+        f"PWD={DB_CONFIG['pwd']}"
+    )
+    conn = pyodbc.connect(connection_string)
+    return ConnectionWrapper(conn)
+
+# IntegrityError için pyodbc exception kullan
+IntegrityError = pyodbc.IntegrityError
 
 # ==================================================================
 # 1. KİMLİK DOĞRULAMA (AUTHENTICATION) & KAYIT
@@ -43,7 +114,7 @@ def register_app_user():
                        (name, email, password))
         conn.commit()
         return jsonify({'message': 'Kullanıcı oluşturuldu. Şimdi bir spor salonuna gidip kaydınızı tamamlayın.'}), 201
-    except mysql.connector.IntegrityError:
+    except IntegrityError:
         return jsonify({'error': 'Bu email zaten kayıtlı'}), 409
     finally:
         cursor.close()

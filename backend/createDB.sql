@@ -131,6 +131,119 @@ CREATE TABLE IF NOT EXISTS CustomRoutineExercise (
 );
 
 -- ================================================================
+-- GÖRÜNTÜLER (VIEWS)
+-- ================================================================
+
+-- 1. Aktif Üyeler Görüntüsü
+-- Tüm aktif üyeleri salon bilgileriyle birlikte gösterir
+CREATE OR REPLACE VIEW ActiveMembersView AS
+SELECT 
+    m.member_id,
+    m.name AS member_name,
+    m.email,
+    m.phone,
+    g.gym_id,
+    g.name AS gym_name,
+    ms.type AS membership_type,
+    ms.start_date,
+    ms.end_date,
+    ms.credit_total,
+    ms.credit_used,
+    (ms.credit_total - ms.credit_used) AS credit_remaining,
+    CASE 
+        WHEN ms.type = 'timed' THEN DATEDIFF(ms.end_date, CURDATE())
+        ELSE NULL 
+    END AS days_remaining
+FROM Member m
+JOIN Membership ms ON m.member_id = ms.member_id
+JOIN Gym g ON ms.gym_id = g.gym_id
+WHERE ms.is_active = TRUE;
+
+-- 2. Salondaki Antrenörler Görüntüsü
+-- Şu an salonda bulunan antrenörleri gösterir
+CREATE OR REPLACE VIEW TrainersInGymView AS
+SELECT 
+    t.trainer_id,
+    t.name AS trainer_name,
+    t.specialty,
+    t.rating_avg,
+    g.gym_id,
+    g.name AS gym_name,
+    m.email AS trainer_email
+FROM Trainer t
+JOIN Gym g ON t.gym_id = g.gym_id
+LEFT JOIN Member m ON t.member_id = m.member_id
+WHERE t.is_in_gym = TRUE;
+
+-- 3. Salon İstatistikleri Görüntüsü
+-- Her salonun özet istatistiklerini gösterir
+CREATE OR REPLACE VIEW GymStatsView AS
+SELECT 
+    g.gym_id,
+    g.name AS gym_name,
+    g.capacity,
+    (SELECT COUNT(*) FROM Membership ms WHERE ms.gym_id = g.gym_id AND ms.is_active = TRUE) AS total_active_members,
+    (SELECT COUNT(*) FROM Trainer t WHERE t.gym_id = g.gym_id) AS total_trainers,
+    (SELECT COUNT(*) FROM Trainer t WHERE t.gym_id = g.gym_id AND t.is_in_gym = TRUE) AS trainers_in_gym,
+    (SELECT COUNT(*) FROM TurnstileEvent te 
+     WHERE te.gym_id = g.gym_id 
+     AND te.direction = 'in' 
+     AND DATE(te.ts) = CURDATE()) AS today_entries
+FROM Gym g;
+
+-- 4. Bugünkü Giriş/Çıkışlar Görüntüsü
+-- Bugün gerçekleşen tüm turnike olaylarını gösterir
+CREATE OR REPLACE VIEW TodayEntriesView AS
+SELECT 
+    te.event_id,
+    te.direction,
+    te.ts AS event_time,
+    g.name AS gym_name,
+    COALESCE(m.name, t.name) AS person_name,
+    CASE 
+        WHEN te.member_id IS NOT NULL AND te.trainer_id IS NULL THEN 'Üye'
+        WHEN te.trainer_id IS NOT NULL THEN 'Antrenör'
+        ELSE 'Bilinmiyor'
+    END AS person_type
+FROM TurnstileEvent te
+JOIN Gym g ON te.gym_id = g.gym_id
+LEFT JOIN Member m ON te.member_id = m.member_id
+LEFT JOIN Trainer t ON te.trainer_id = t.trainer_id
+WHERE DATE(te.ts) = CURDATE()
+ORDER BY te.ts DESC;
+
+-- 5. Üyelik Özeti Görüntüsü
+-- Üyelik tiplerine göre özet bilgiler
+CREATE OR REPLACE VIEW MembershipSummaryView AS
+SELECT 
+    g.gym_id,
+    g.name AS gym_name,
+    ms.type AS membership_type,
+    COUNT(*) AS member_count,
+    SUM(CASE WHEN ms.is_active = TRUE THEN 1 ELSE 0 END) AS active_count,
+    SUM(CASE WHEN ms.is_active = FALSE THEN 1 ELSE 0 END) AS inactive_count
+FROM Membership ms
+JOIN Gym g ON ms.gym_id = g.gym_id
+GROUP BY g.gym_id, g.name, ms.type;
+
+-- ================================================================
+-- İNDEKSLER (INDEXES)
+-- ================================================================
+
+-- Performans için önemli sorgularda kullanılan kolonlara index
+CREATE INDEX idx_member_email ON Member(email);
+CREATE INDEX idx_membership_gym ON Membership(gym_id);
+CREATE INDEX idx_membership_member ON Membership(member_id);
+CREATE INDEX idx_membership_active ON Membership(is_active);
+CREATE INDEX idx_trainer_gym ON Trainer(gym_id);
+CREATE INDEX idx_trainer_member ON Trainer(member_id);
+CREATE INDEX idx_trainer_in_gym ON Trainer(is_in_gym);
+CREATE INDEX idx_turnstile_gym ON TurnstileEvent(gym_id);
+CREATE INDEX idx_turnstile_member ON TurnstileEvent(member_id);
+CREATE INDEX idx_turnstile_date ON TurnstileEvent(ts);
+CREATE INDEX idx_exercise_muscle ON Exercise(muscle_group);
+
+-- ================================================================
 -- TEST VERİLERİ
 -- ================================================================
 
