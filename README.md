@@ -183,6 +183,8 @@ Open admin-panel/index.html in a web browser, or serve it with a local server.
 This project is developed for educational purposes.
 
 ## Contributors
+```text
 Ahmet Berkay Avan
 Halil İbrahim Keskin
 Developed as part of CENG 372 Database Management Systems course project.
+```
