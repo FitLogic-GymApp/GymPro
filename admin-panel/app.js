@@ -7,6 +7,8 @@ let currentGymName = null;
 let currentAdminUsername = null;
 let allMembers = [];
 let allTrainers = [];
+let allPrograms = [];
+let allExercises = [];
 
 // ==================== LOGIN ====================
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -77,7 +79,7 @@ async function loadGymInfo() {
 }
 
 async function loadDashboardData() {
-    await Promise.all([loadStats(), loadMembers(), loadTrainers()]);
+    await Promise.all([loadStats(), loadMembers(), loadTrainers(), loadPrograms(), loadExercises()]);
 }
 
 async function loadStats() {
@@ -499,9 +501,14 @@ document.getElementById('confirmDelete').addEventListener('click', async () => {
     const itemId = document.getElementById('deleteItemId').value;
     const itemType = document.getElementById('deleteItemType').value;
     
-    const endpoint = itemType === 'member' 
-        ? `${API_BASE}/admin/membership/${itemId}`
-        : `${API_BASE}/admin/trainers/${itemId}`;
+    let endpoint;
+    if (itemType === 'member') {
+        endpoint = `${API_BASE}/admin/membership/${itemId}`;
+    } else if (itemType === 'trainer') {
+        endpoint = `${API_BASE}/admin/trainers/${itemId}`;
+    } else if (itemType === 'program') {
+        endpoint = `${API_BASE}/admin/programs/${itemId}`;
+    }
     
     try {
         const response = await fetch(endpoint, { method: 'DELETE' });
@@ -512,8 +519,10 @@ document.getElementById('confirmDelete').addEventListener('click', async () => {
             if (itemType === 'member') {
                 loadMembers();
                 loadStats();
-            } else {
+            } else if (itemType === 'trainer') {
                 loadTrainers();
+            } else if (itemType === 'program') {
+                loadPrograms();
             }
         } else {
             const data = await response.json();
@@ -524,6 +533,275 @@ document.getElementById('confirmDelete').addEventListener('click', async () => {
     }
 });
 
+// ==================== PROGRAMS ====================
+async function loadPrograms() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs?gym_id=${currentGymId}`);
+        if (response.ok) {
+            allPrograms = await response.json();
+            renderProgramsTable(allPrograms);
+        }
+    } catch (error) {
+        console.log('Programs error:', error);
+    }
+}
+
+async function loadExercises() {
+    try {
+        const response = await fetch(`${API_BASE}/exercises`);
+        if (response.ok) {
+            allExercises = await response.json();
+        }
+    } catch (error) {
+        console.log('Exercises error:', error);
+    }
+}
+
+function renderProgramsTable(programs) {
+    const tbody = document.getElementById('allProgramsTable');
+    if (programs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Henüz program yok</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = programs.map(p => `
+        <tr>
+            <td>#${p.fixed_id}</td>
+            <td>${p.title}</td>
+            <td>${p.duration_min} dk</td>
+            <td><span class="badge bg-primary">${p.exercise_count || 0} egzersiz</span></td>
+            <td>
+                <button class="btn btn-info action-btn" onclick="openProgramExercisesModal(${p.fixed_id}, '${p.title}')" title="Egzersizler">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+                <button class="btn btn-warning action-btn" onclick="openEditProgramModal(${p.fixed_id}, '${p.title}', ${p.duration_min})" title="Düzenle">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-danger action-btn" onclick="openDeleteModal(${p.fixed_id}, 'program', '${p.title}')" title="Sil">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Add Program
+document.getElementById('confirmAddProgram').addEventListener('click', async () => {
+    const title = document.getElementById('programTitle').value;
+    const durationMin = document.getElementById('programDuration').value;
+    
+    if (!title) {
+        showAlert('Program adı gerekli!', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                gym_id: currentGymId,
+                title,
+                duration_min: parseInt(durationMin)
+            })
+        });
+        
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('addProgramModal')).hide();
+            document.getElementById('programTitle').value = '';
+            document.getElementById('programDuration').value = '45';
+            showAlert('Program eklendi! 🎉', 'success');
+            loadPrograms();
+        } else {
+            const data = await response.json();
+            showAlert(data.error || 'Program eklenemedi', 'danger');
+        }
+    } catch (error) {
+        showAlert('Sunucu hatası', 'danger');
+    }
+});
+
+// Edit Program
+function openEditProgramModal(programId, title, durationMin) {
+    document.getElementById('editProgramId').value = programId;
+    document.getElementById('editProgramTitle').value = title;
+    document.getElementById('editProgramDuration').value = durationMin;
+    new bootstrap.Modal(document.getElementById('editProgramModal')).show();
+}
+
+document.getElementById('confirmEditProgram').addEventListener('click', async () => {
+    const programId = document.getElementById('editProgramId').value;
+    const title = document.getElementById('editProgramTitle').value;
+    const durationMin = document.getElementById('editProgramDuration').value;
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs/${programId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, duration_min: parseInt(durationMin) })
+        });
+        
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('editProgramModal')).hide();
+            showAlert('Program güncellendi! ✅', 'success');
+            loadPrograms();
+        } else {
+            const data = await response.json();
+            showAlert(data.error || 'Güncelleme başarısız', 'danger');
+        }
+    } catch (error) {
+        showAlert('Sunucu hatası', 'danger');
+    }
+});
+
+// Program Exercises Modal
+let currentProgramId = null;
+
+async function openProgramExercisesModal(programId, programTitle) {
+    currentProgramId = programId;
+    document.getElementById('programExercisesTitle').textContent = `${programTitle} - Egzersizler`;
+    
+    // Egzersiz dropdown'ını doldur
+    populateExerciseDropdown();
+    
+    // Mevcut egzersizleri yükle
+    await loadProgramExercises(programId);
+    
+    new bootstrap.Modal(document.getElementById('programExercisesModal')).show();
+}
+
+function populateExerciseDropdown() {
+    const select = document.getElementById('newExerciseId');
+    select.innerHTML = '<option value="">-- Egzersiz seçin --</option>';
+    
+    // Kas gruplarına göre sırala ve düz liste yap
+    const sorted = [...allExercises].sort((a, b) => {
+        if (a.muscle_group === b.muscle_group) {
+            return a.name.localeCompare(b.name);
+        }
+        return a.muscle_group.localeCompare(b.muscle_group);
+    });
+    
+    sorted.forEach(e => {
+        const option = document.createElement('option');
+        option.value = e.exercise_id;
+        option.textContent = `${e.name} (${e.muscle_group})`;
+        select.appendChild(option);
+    });
+}
+
+async function loadProgramExercises(programId) {
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs/${programId}/exercises`);
+        if (response.ok) {
+            const exercises = await response.json();
+            renderProgramExercises(exercises);
+        }
+    } catch (error) {
+        console.log('Program exercises error:', error);
+    }
+}
+
+function renderProgramExercises(exercises) {
+    const container = document.getElementById('programExercisesList');
+    if (exercises.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center py-3">Bu programda henüz egzersiz yok</p>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Sıra</th>
+                    <th>Egzersiz</th>
+                    <th>Kas Grubu</th>
+                    <th>Set</th>
+                    <th>Tekrar</th>
+                    <th>Dinlenme</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${exercises.map(e => `
+                    <tr>
+                        <td>${e.order_no}</td>
+                        <td>${e.name}</td>
+                        <td><span class="badge bg-secondary">${e.muscle_group}</span></td>
+                        <td>${e.sets}</td>
+                        <td>${e.reps}</td>
+                        <td>${e.rest_sec}s</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="removeExerciseFromProgram(${e.exercise_id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+// Add Exercise to Program
+document.getElementById('addExerciseBtn').addEventListener('click', async () => {
+    const exerciseId = document.getElementById('newExerciseId').value;
+    const sets = document.getElementById('newExerciseSets').value;
+    const reps = document.getElementById('newExerciseReps').value;
+    const restSec = document.getElementById('newExerciseRest').value;
+    
+    if (!exerciseId) {
+        showAlert('Egzersiz seçin!', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs/${currentProgramId}/exercises`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                exercise_id: parseInt(exerciseId),
+                sets: parseInt(sets),
+                reps: parseInt(reps),
+                rest_sec: parseInt(restSec)
+            })
+        });
+        
+        if (response.ok) {
+            document.getElementById('newExerciseId').value = '';
+            showAlert('Egzersiz eklendi!', 'success');
+            await loadProgramExercises(currentProgramId);
+            loadPrograms(); // Egzersiz sayısını güncelle
+        } else {
+            const data = await response.json();
+            showAlert(data.error || 'Egzersiz eklenemedi', 'danger');
+        }
+    } catch (error) {
+        showAlert('Sunucu hatası', 'danger');
+    }
+});
+
+async function removeExerciseFromProgram(exerciseId) {
+    if (!confirm('Bu egzersizi programdan kaldırmak istediğinize emin misiniz?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/programs/${currentProgramId}/exercises/${exerciseId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showAlert('Egzersiz kaldırıldı!', 'success');
+            await loadProgramExercises(currentProgramId);
+            loadPrograms(); // Egzersiz sayısını güncelle
+        } else {
+            const data = await response.json();
+            showAlert(data.error || 'İşlem başarısız', 'danger');
+        }
+    } catch (error) {
+        showAlert('Sunucu hatası', 'danger');
+    }
+}
+
 // ==================== NAVIGATION ====================
 function navigateTo(page) {
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -532,7 +810,7 @@ function navigateTo(page) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`section-${page}`).classList.add('active');
     
-    const titles = { 'dashboard': 'Dashboard', 'members': 'Üyeler', 'trainers': 'Antrenörler', 'settings': 'Ayarlar' };
+    const titles = { 'dashboard': 'Dashboard', 'members': 'Üyeler', 'trainers': 'Antrenörler', 'programs': 'Programlar', 'settings': 'Ayarlar' };
     document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
 }
 

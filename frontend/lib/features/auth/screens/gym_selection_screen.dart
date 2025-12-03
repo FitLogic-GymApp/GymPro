@@ -267,6 +267,58 @@ class _GymSelectionScreenState extends State<GymSelectionScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      // Doluluk göstergesi
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.people,
+                            size: 16,
+                            color: _getOccupancyColor(gym.occupancyPercentage),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      '${gym.peopleInside}/${gym.capacity} kişi',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[700],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '%${gym.occupancyPercentage.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: _getOccupancyColor(gym.occupancyPercentage),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: gym.occupancyPercentage / 100,
+                                    backgroundColor: Colors.grey[300],
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      _getOccupancyColor(gym.occupancyPercentage),
+                                    ),
+                                    minHeight: 6,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -301,5 +353,15 @@ class _GymSelectionScreenState extends State<GymSelectionScreen> {
         ),
       ),
     );
+  }
+
+  Color _getOccupancyColor(double percentage) {
+    if (percentage < 50) {
+      return Colors.green;
+    } else if (percentage < 80) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
   }
 }

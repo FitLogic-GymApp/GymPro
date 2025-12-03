@@ -59,13 +59,27 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Kayıt ol
-  Future<bool> register(String name, String email, String password) async {
+  Future<bool> register({
+    required String name,
+    required String email,
+    required String password,
+    String? phone,
+    String? gender,
+    String? birthDate,
+  }) async {
     _state = AuthState.loading;
     _error = null;
     notifyListeners();
 
     try {
-      await _authService.register(name, email, password);
+      await _authService.register(
+        name: name,
+        email: email,
+        password: password,
+        phone: phone,
+        gender: gender,
+        birthDate: birthDate,
+      );
       _state = AuthState.unauthenticated;
       notifyListeners();
       return true;

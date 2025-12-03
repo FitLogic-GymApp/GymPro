@@ -19,6 +19,7 @@ class Exercise {
 }
 
 class WorkoutExercise {
+  final int exerciseId;
   final String exerciseName;
   final String? muscleGroup;
   final int sets;
@@ -27,6 +28,7 @@ class WorkoutExercise {
   final int orderNo;
 
   WorkoutExercise({
+    required this.exerciseId,
     required this.exerciseName,
     this.muscleGroup,
     required this.sets,
@@ -37,6 +39,7 @@ class WorkoutExercise {
 
   factory WorkoutExercise.fromJson(Map<String, dynamic> json) {
     return WorkoutExercise(
+      exerciseId: json['exercise_id'] ?? 0,
       exerciseName: json['exercise_name'] ?? json['name'] ?? '',
       muscleGroup: json['muscle_group'],
       sets: json['sets'] ?? 0,

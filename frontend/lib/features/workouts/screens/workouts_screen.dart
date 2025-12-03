@@ -284,6 +284,7 @@ class _WorkoutCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       ...?detail.exercises?.map((e) => _ExerciseListItem(
+                            exerciseId: e.exerciseId,
                             name: e.exerciseName,
                             muscleGroup: e.muscleGroup ?? '',
                             sets: e.sets,
@@ -495,11 +496,36 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
                   )
                 else
                   ...routine.exercises!.map((e) => _ExerciseListItem(
+                        routineId: widget.routineId,
+                        exerciseId: e.exerciseId,
                         name: e.exerciseName,
                         muscleGroup: e.muscleGroup ?? '',
                         sets: e.sets,
                         reps: e.reps,
                         rest: e.restSec,
+                        onDelete: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: AppColors.surface,
+                              title: const Text('Remove Exercise', style: TextStyle(color: AppColors.textPrimary)),
+                              content: Text('Remove "${e.exerciseName}" from this routine?', style: const TextStyle(color: AppColors.textSecondary)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Remove', style: TextStyle(color: AppColors.error)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true && context.mounted) {
+                            await context.read<WorkoutsProvider>().removeExerciseFromRoutine(widget.routineId, e.exerciseId);
+                          }
+                        },
                       )),
               ],
             ),
@@ -554,6 +580,181 @@ class _AddExerciseSheet extends StatefulWidget {
 
 class _AddExerciseSheetState extends State<_AddExerciseSheet> {
   String? _selectedMuscleGroup;
+  int _sets = 3;
+  int _reps = 12;
+  int _restSec = 60;
+
+  void _showExerciseConfigDialog(BuildContext context, Exercise exercise) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            exercise.name,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                exercise.muscleGroup,
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const Text('Sets', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.remove, size: 16),
+                                  onPressed: () => setDialogState(() => _sets = (_sets > 1) ? _sets - 1 : 1),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text('$_sets', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.add, size: 16),
+                                  onPressed: () => setDialogState(() => _sets++),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const Text('Reps', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.remove, size: 16),
+                                  onPressed: () => setDialogState(() => _reps = (_reps > 1) ? _reps - 1 : 1),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text('$_reps', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.add, size: 16),
+                                  onPressed: () => setDialogState(() => _reps++),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const Text('Rest (s)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.remove, size: 16),
+                                  onPressed: () => setDialogState(() => _restSec = (_restSec > 0) ? _restSec - 15 : 0),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text('$_restSec', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
+                              SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.add, size: 16),
+                                  onPressed: () => setDialogState(() => _restSec += 15),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final provider = context.read<WorkoutsProvider>();
+                await provider.addExerciseToRoutine(
+                  routineId: widget.routineId,
+                  exerciseId: exercise.exerciseId,
+                  sets: _sets,
+                  reps: _reps,
+                  restSec: _restSec,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -627,15 +828,7 @@ class _AddExerciseSheetState extends State<_AddExerciseSheet> {
                       trailing: IconButton(
                         icon: const Icon(Icons.add_circle,
                             color: AppColors.primary),
-                        onPressed: () async {
-                          await provider.addExerciseToRoutine(
-                            routineId: widget.routineId,
-                            exerciseId: exercise.exerciseId,
-                          );
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                          }
-                        },
+                        onPressed: () => _showExerciseConfigDialog(context, exercise),
                       ),
                     );
                   },
@@ -684,18 +877,24 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _ExerciseListItem extends StatelessWidget {
+  final int? routineId;
+  final int exerciseId;
   final String name;
   final String muscleGroup;
   final int sets;
   final int reps;
   final int rest;
+  final VoidCallback? onDelete;
 
   const _ExerciseListItem({
+    this.routineId,
+    required this.exerciseId,
     required this.name,
     required this.muscleGroup,
     required this.sets,
     required this.reps,
     required this.rest,
+    this.onDelete,
   });
 
   @override
@@ -749,6 +948,18 @@ class _ExerciseListItem extends StatelessWidget {
               _buildStatBadge('${rest}s', 'rest'),
             ],
           ),
+          if (onDelete != null) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                onPressed: onDelete,
+              ),
+            ),
+          ],
         ],
       ),
     );

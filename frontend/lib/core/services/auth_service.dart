@@ -29,6 +29,9 @@ class Gym {
   final String location;
   final String membershipType;
   final bool isActive;
+  final int peopleInside;
+  final int capacity;
+  final double occupancyPercentage;
 
   Gym({
     required this.gymId,
@@ -36,6 +39,9 @@ class Gym {
     required this.location,
     required this.membershipType,
     required this.isActive,
+    this.peopleInside = 0,
+    this.capacity = 100,
+    this.occupancyPercentage = 0,
   });
 
   factory Gym.fromJson(Map<String, dynamic> json) {
@@ -45,6 +51,9 @@ class Gym {
       location: json['location'] ?? '',
       membershipType: json['type'] ?? 'timed',
       isActive: json['is_active'] == 1 || json['is_active'] == true,
+      peopleInside: json['people_inside'] ?? 0,
+      capacity: json['capacity'] ?? 100,
+      occupancyPercentage: (json['occupancy_percentage'] ?? 0).toDouble(),
     );
   }
 }
@@ -120,11 +129,21 @@ class AuthService {
   }
 
   /// Yeni kullanıcı kaydı
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+    String? phone,
+    String? gender,
+    String? birthDate,
+  }) async {
     await _api.post('/register', body: {
       'name': name,
       'email': email,
       'password': password,
+      'phone': phone,
+      'gender': gender,
+      'birth_date': birthDate,
     });
   }
 

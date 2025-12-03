@@ -2,6 +2,9 @@
 -- GymPro SaaS - Multi-Tenant Veritabanı Şeması
 -- ================================================================
 
+-- Veritabanını sıfırla (dikkat: tüm veriler silinir!)
+DROP DATABASE IF EXISTS gympro_db;
+CREATE DATABASE gympro_db;
 USE gympro_db;
 
 -- 1. GYM Tablosu (Spor Salonları)

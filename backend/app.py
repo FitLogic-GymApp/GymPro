@@ -20,14 +20,15 @@ DB_CONFIG = {
 
 class DictCursor:
     """pyodbc cursor'ı mysql.connector dictionary cursor gibi davranmasını sağlar"""
-    def __init__(self, cursor):
+    def __init__(self, cursor, as_dict=True):
         self._cursor = cursor
         self._columns = None
+        self._as_dict = as_dict
     
     def execute(self, sql, params=None):
+        # MySQL %s placeholder -> ODBC ? placeholder
+        sql = sql.replace('%s', '?')
         if params:
-            # MySQL %s placeholder -> ODBC ? placeholder
-            sql = sql.replace('%s', '?')
             self._cursor.execute(sql, params)
         else:
             self._cursor.execute(sql)
@@ -37,13 +38,13 @@ class DictCursor:
     
     def fetchone(self):
         row = self._cursor.fetchone()
-        if row and self._columns:
+        if row and self._columns and self._as_dict:
             return dict(zip(self._columns, row))
         return row
     
     def fetchall(self):
         rows = self._cursor.fetchall()
-        if rows and self._columns:
+        if rows and self._columns and self._as_dict:
             return [dict(zip(self._columns, row)) for row in rows]
         return rows
     
@@ -67,9 +68,8 @@ class ConnectionWrapper:
     
     def cursor(self, dictionary=False):
         cursor = self._conn.cursor()
-        if dictionary:
-            return DictCursor(cursor)
-        return cursor
+        # Her zaman wrapper kullan (%s -> ? dönüşümü için)
+        return DictCursor(cursor, as_dict=dictionary)
     
     def commit(self):
         self._conn.commit()
@@ -106,12 +106,17 @@ def register_app_user():
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
+    phone = data.get('phone')
+    gender = data.get('gender')  # 'M' veya 'F'
+    birth_date = data.get('birth_date')  # 'YYYY-MM-DD' formatında
 
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO Member (name, email, password) VALUES (%s, %s, %s)", 
-                       (name, email, password))
+        cursor.execute("""
+            INSERT INTO Member (name, email, password, phone, gender, birth_date) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (name, email, password, phone, gender, birth_date))
         conn.commit()
         return jsonify({'message': 'Kullanıcı oluşturuldu. Şimdi bir spor salonuna gidip kaydınızı tamamlayın.'}), 201
     except IntegrityError:
@@ -158,6 +163,7 @@ def get_my_memberships():
     """
     SENARYO: Bir kullanıcının birden fazla spor salonunda üyeliği olabilir.
     Örn: Hem 'ODTÜ Gym' hem 'Hacettepe Gym'. Bu endpoint aktif üyelikleri listeler.
+    Her gym için doluluk oranı da hesaplanır.
     """
     member_id = request.args.get('member_id')
     
@@ -165,12 +171,31 @@ def get_my_memberships():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT g.gym_id, g.name, g.location, m.type, m.is_active
+            SELECT g.gym_id, g.name, g.location, g.capacity, m.type, m.is_active
             FROM Membership m
             JOIN Gym g ON m.gym_id = g.gym_id
             WHERE m.member_id = %s AND m.is_active = 1
         """, (member_id,))
         gyms = cursor.fetchall()
+        
+        # Her gym için doluluk oranı hesapla
+        for gym in gyms:
+            gym_id = gym['gym_id']
+            capacity = gym.get('capacity', 100)
+            
+            cursor.execute("SELECT count(*) as cnt FROM TurnstileEvent WHERE gym_id = %s AND direction='in'", (gym_id,))
+            total_in = cursor.fetchone()['cnt']
+            
+            cursor.execute("SELECT count(*) as cnt FROM TurnstileEvent WHERE gym_id = %s AND direction='out'", (gym_id,))
+            total_out = cursor.fetchone()['cnt']
+            
+            people_inside = max(0, total_in - total_out)
+            occupancy_rate = (people_inside / capacity) * 100 if capacity > 0 else 0
+            
+            gym['people_inside'] = people_inside
+            gym['capacity'] = capacity
+            gym['occupancy_percentage'] = round(occupancy_rate, 1)
+        
         return jsonify(gyms)
     finally:
         cursor.close()
@@ -360,7 +385,7 @@ def get_routine_detail(routine_id):
         if not routine: return jsonify({'error': 'Bulunamadı'}), 404
         
         cursor.execute("""
-            SELECT e.name, cre.sets, cre.reps, cre.rest_sec, cre.order_no
+            SELECT e.exercise_id, e.name AS exercise_name, e.muscle_group, cre.sets, cre.reps, cre.rest_sec, cre.order_no
             FROM CustomRoutineExercise cre
             JOIN Exercise e ON cre.exercise_id = e.exercise_id
             WHERE cre.routine_id = %s ORDER BY cre.order_no ASC
@@ -569,7 +594,7 @@ def turnstile_checkin():
         
         # Giriş kaydı oluştur
         cursor.execute("""
-            INSERT INTO TurnstileEvent (gym_id, member_id, direction, event_time)
+            INSERT INTO TurnstileEvent (gym_id, member_id, direction, ts)
             VALUES (%s, %s, 'in', NOW())
         """, (gym_id, member_id))
         
@@ -616,7 +641,7 @@ def turnstile_checkout():
     try:
         # Çıkış kaydı oluştur
         cursor.execute("""
-            INSERT INTO TurnstileEvent (gym_id, member_id, direction, event_time)
+            INSERT INTO TurnstileEvent (gym_id, member_id, direction, ts)
             VALUES (%s, %s, 'out', NOW())
         """, (gym_id, member_id))
         
@@ -1030,6 +1055,186 @@ def admin_add_membership():
         
         conn.commit()
         return jsonify({'message': f'{user_email} başarıyla kaydedildi.'}), 201
+    finally:
+        cursor.close()
+        conn.close()
+
+# ==================================================================
+# 9. PROGRAM YÖNETİMİ (ADMIN)
+# ==================================================================
+
+@app.route('/api/admin/programs', methods=['GET'])
+def get_admin_programs():
+    """Salona ait programları listeler."""
+    gym_id = request.args.get('gym_id')
+    if not gym_id:
+        return jsonify({'error': 'gym_id gerekli'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT fw.fixed_id, fw.title, fw.duration_min,
+                   (SELECT COUNT(*) FROM FixedWorkoutExercise fwe WHERE fwe.fixed_id = fw.fixed_id) as exercise_count
+            FROM FixedWorkout fw
+            WHERE fw.gym_id = %s OR fw.gym_id IS NULL
+            ORDER BY fw.fixed_id DESC
+        """, (gym_id,))
+        programs = cursor.fetchall()
+        return jsonify(programs)
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs', methods=['POST'])
+def add_program():
+    """Yeni program ekler."""
+    data = request.get_json()
+    gym_id = data.get('gym_id')
+    title = data.get('title')
+    duration_min = data.get('duration_min', 45)
+    
+    if not gym_id or not title:
+        return jsonify({'error': 'gym_id ve title zorunludur'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO FixedWorkout (gym_id, title, duration_min)
+            VALUES (%s, %s, %s)
+        """, (gym_id, title, duration_min))
+        conn.commit()
+        return jsonify({'message': 'Program eklendi', 'fixed_id': cursor.lastrowid}), 201
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs/<int:program_id>', methods=['PUT'])
+def update_program(program_id):
+    """Program bilgilerini günceller."""
+    data = request.get_json()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM FixedWorkout WHERE fixed_id = %s", (program_id,))
+        program = cursor.fetchone()
+        if not program:
+            return jsonify({'error': 'Program bulunamadı'}), 404
+        
+        title = data.get('title', program['title'])
+        duration_min = data.get('duration_min', program['duration_min'])
+        
+        cursor.execute("""
+            UPDATE FixedWorkout SET title = %s, duration_min = %s
+            WHERE fixed_id = %s
+        """, (title, duration_min, program_id))
+        conn.commit()
+        return jsonify({'message': 'Program güncellendi'})
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs/<int:program_id>', methods=['DELETE'])
+def delete_program(program_id):
+    """Programı siler."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM FixedWorkout WHERE fixed_id = %s", (program_id,))
+        conn.commit()
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Program bulunamadı'}), 404
+        return jsonify({'message': 'Program silindi'})
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs/<int:program_id>/exercises', methods=['GET'])
+def get_program_exercises(program_id):
+    """Programa ait egzersizleri listeler."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT fwe.exercise_id, e.name, e.muscle_group, fwe.order_no, fwe.sets, fwe.reps, fwe.rest_sec
+            FROM FixedWorkoutExercise fwe
+            JOIN Exercise e ON fwe.exercise_id = e.exercise_id
+            WHERE fwe.fixed_id = %s
+            ORDER BY fwe.order_no
+        """, (program_id,))
+        exercises = cursor.fetchall()
+        return jsonify(exercises)
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs/<int:program_id>/exercises', methods=['POST'])
+def add_exercise_to_program(program_id):
+    """Programa egzersiz ekler."""
+    data = request.get_json()
+    exercise_id = data.get('exercise_id')
+    sets = data.get('sets', 3)
+    reps = data.get('reps', 12)
+    rest_sec = data.get('rest_sec', 60)
+    
+    if not exercise_id:
+        return jsonify({'error': 'exercise_id zorunludur'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Sıradaki order_no'yu bul
+        cursor.execute("""
+            SELECT COALESCE(MAX(order_no), 0) + 1 as next_order
+            FROM FixedWorkoutExercise WHERE fixed_id = %s
+        """, (program_id,))
+        result = cursor.fetchone()
+        order_no = result['next_order'] if result else 1
+        
+        cursor.execute("""
+            INSERT INTO FixedWorkoutExercise (fixed_id, exercise_id, order_no, sets, reps, rest_sec)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (program_id, exercise_id, order_no, sets, reps, rest_sec))
+        conn.commit()
+        return jsonify({'message': 'Egzersiz eklendi'}), 201
+    except Exception as e:
+        return jsonify({'error': 'Bu egzersiz zaten programda mevcut'}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/admin/programs/<int:program_id>/exercises/<int:exercise_id>', methods=['DELETE'])
+def remove_exercise_from_program(program_id, exercise_id):
+    """Programdan egzersiz siler."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM FixedWorkoutExercise 
+            WHERE fixed_id = %s AND exercise_id = %s
+        """, (program_id, exercise_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Egzersiz bulunamadı'}), 404
+        return jsonify({'message': 'Egzersiz silindi'})
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/exercises', methods=['GET'])
+def get_all_exercises():
+    """Tüm egzersizleri listeler."""
+    muscle_group = request.args.get('muscle_group')
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if muscle_group:
+            cursor.execute("SELECT * FROM Exercise WHERE muscle_group = %s ORDER BY name", (muscle_group,))
+        else:
+            cursor.execute("SELECT * FROM Exercise ORDER BY name")
+        exercises = cursor.fetchall()
+        return jsonify(exercises)
     finally:
         cursor.close()
         conn.close()

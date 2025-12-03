@@ -16,9 +16,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  String? _selectedGender;
+  DateTime? _birthDate;
 
   @override
   void dispose() {
@@ -26,7 +29,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectBirthDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000, 1, 1),
+      firstDate: DateTime(1940),
+      lastDate: DateTime.now().subtract(const Duration(days: 365 * 10)), // En az 10 yaş
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _birthDate = picked);
+    }
   }
 
   Future<void> _handleRegister() async {
@@ -36,9 +62,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.register(
-      _nameController.text.trim(),
-      _emailController.text.trim(),
-      _passwordController.text,
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
+      gender: _selectedGender,
+      birthDate: _birthDate != null 
+          ? '${_birthDate!.year}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}'
+          : null,
     );
 
     if (!mounted) return;
@@ -195,6 +226,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 }
                                 return null;
                               },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Phone
+                            TextFormField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              decoration: InputDecoration(
+                                labelText: 'Telefon',
+                                prefixIcon: const Icon(Icons.phone_outlined),
+                                hintText: '05XX XXX XX XX',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Gender & Birth Date Row
+                            Row(
+                              children: [
+                                // Gender
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedGender,
+                                    decoration: InputDecoration(
+                                      labelText: 'Cinsiyet',
+                                      prefixIcon: const Icon(Icons.person_outline),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(value: 'M', child: Text('Erkek')),
+                                      DropdownMenuItem(value: 'F', child: Text('Kadın')),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() => _selectedGender = value);
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Birth Date
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: _selectBirthDate,
+                                    child: InputDecorator(
+                                      decoration: InputDecoration(
+                                        labelText: 'Doğum Tarihi',
+                                        prefixIcon: const Icon(Icons.cake_outlined),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _birthDate != null
+                                            ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
+                                            : 'Seçiniz',
+                                        style: TextStyle(
+                                          color: _birthDate != null 
+                                              ? null 
+                                              : Colors.grey[600],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 16),
 

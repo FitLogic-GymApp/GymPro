@@ -77,6 +77,7 @@
         .form-control::placeholder { color: var(--text-muted); }
         .form-label { color: var(--text-secondary); font-weight: 500; margin-bottom: 6px; }
         .form-select option { background: var(--darker); color: var(--text-primary); }
+        .form-select optgroup { background: var(--dark); color: var(--primary); font-weight: 600; }
         
         /* INPUT READONLY */
         .form-control[readonly] { 
@@ -388,6 +389,9 @@
                 <a href="#" class="nav-link" data-page="trainers">
                     <i class="bi bi-person-badge"></i><span>Antrenörler</span>
                 </a>
+                <a href="#" class="nav-link" data-page="programs">
+                    <i class="bi bi-journal-text"></i><span>Programlar</span>
+                </a>
                 <a href="#" class="nav-link" data-page="settings">
                     <i class="bi bi-gear"></i><span>Ayarlar</span>
                 </a>
@@ -523,6 +527,28 @@
                             </thead>
                             <tbody id="allTrainersTable">
                                 <tr><td colspan="7" class="text-center py-4">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROGRAMS SECTION -->
+            <div class="page-section" id="section-programs">
+                <div class="content-card">
+                    <div class="card-header-custom">
+                        <h5><i class="bi bi-journal-text me-2"></i>Antrenman Programları</h5>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProgramModal">
+                            <i class="bi bi-plus-circle me-2"></i>Program Ekle
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr><th>ID</th><th>Program Adı</th><th>Süre (dk)</th><th>Egzersiz Sayısı</th><th style="width:200px;">İşlemler</th></tr>
+                            </thead>
+                            <tbody id="allProgramsTable">
+                                <tr><td colspan="5" class="text-center py-4">Yükleniyor...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -773,6 +799,108 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
                     <button type="button" class="btn btn-primary" id="confirmEditTrainer"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Program Modal -->
+    <div class="modal fade" id="addProgramModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-journal-plus me-2"></i>Yeni Program</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Program Adı <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="programTitle" placeholder="Başlangıç Fitness Programı">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Süre (dakika)</label>
+                        <input type="number" class="form-control" id="programDuration" value="45" min="10" max="180">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmAddProgram"><i class="bi bi-check-lg me-1"></i>Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Program Modal -->
+    <div class="modal fade" id="editProgramModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Program Düzenle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editProgramId">
+                    <div class="mb-3">
+                        <label class="form-label">Program Adı</label>
+                        <input type="text" class="form-control" id="editProgramTitle">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Süre (dakika)</label>
+                        <input type="number" class="form-control" id="editProgramDuration" min="10" max="180">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="button" class="btn btn-primary" id="confirmEditProgram"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Program Exercises Modal -->
+    <div class="modal fade" id="programExercisesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-list-check me-2"></i>Program Egzersizleri: <span id="programExercisesTitle"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="currentProgramId">
+                    
+                    <!-- Egzersiz Ekleme Formu -->
+                    <div class="card mb-3" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);">
+                        <div class="card-body">
+                            <h6 class="mb-3" style="color: var(--text-primary);"><i class="bi bi-plus-circle me-2"></i>Egzersiz Ekle</h6>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <select class="form-select" id="newExerciseId">
+                                        <option value="">Egzersiz seçin...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="number" class="form-control" id="newExerciseSets" placeholder="Set" value="3" min="1">
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="number" class="form-control" id="newExerciseReps" placeholder="Tekrar" value="12" min="1">
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="number" class="form-control" id="newExerciseRest" placeholder="Dinlenme (sn)" value="60" min="0">
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-success w-100" id="addExerciseBtn"><i class="bi bi-plus"></i> Ekle</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Egzersiz Listesi -->
+                    <div class="table-responsive" id="programExercisesList">
+                        <p class="text-muted text-center py-3">Henüz egzersiz eklenmemiş</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
                 </div>
             </div>
         </div>
