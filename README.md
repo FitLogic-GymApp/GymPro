@@ -4,12 +4,12 @@ GymPro is a comprehensive fitness management system designed for gym chains and 
 
 ## Project Structure
 
-
+```text
 372_proje/
 ├── backend/          # Flask REST API
 ├── frontend/         # Flutter Mobile Application
 └── admin-panel/      # Web-based Admin Dashboard
-
+```
 
 ## Features
 
@@ -183,5 +183,6 @@ Open admin-panel/index.html in a web browser, or serve it with a local server.
 This project is developed for educational purposes.
 
 ## Contributors
-
+Ahmet Berkay Avan
+Halil İbrahim Keskin
 Developed as part of CENG 372 Database Management Systems course project.
